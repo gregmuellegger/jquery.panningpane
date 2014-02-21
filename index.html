@@ -10,17 +10,20 @@
 <script type="text/javascript">//<![CDATA[
     $.fn.panningpane = function (options) {
         var opts = $.extend({
-            
+            outOfBoundarySlowdown: 0.5,
+            snapBackDuration: 500,
+            snapBackAnimationOptions: {},
+            padding: 200 
         }, options);
 
         var that = $(this),
+            canvas = that.find('.panningpane-canvas'),
             boxes = that.find('.panebox'),
-            currentOffset = {top: 0, left: 0},
-            padding = 200;
+            currentOffset = {top: 0, left: 0};
 
         /* Helpers */
 
-        var calculateBoundaries = function () {
+        var getBoundaries = function () {
             var boundary = {
                 top: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('top'));  }))),
                 left: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('left'));  }))),
@@ -28,10 +31,10 @@
                 right: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('left')) + $(this).outerWidth();  })))
             };
 
-            boundary.top -= padding;
-            boundary.right += padding;
-            boundary.bottom += padding;
-            boundary.left -= padding;
+            boundary.top -= opts.padding;
+            boundary.right += opts.padding;
+            boundary.bottom += opts.padding;
+            boundary.left -= opts.padding;
 
             boundary.right -= that.innerWidth();
             boundary.bottom -= that.innerHeight();
@@ -39,46 +42,59 @@
             return boundary;
         };
 
+        var getCurrentOffset = function () {
+            return {
+                top: -parseInt(canvas.css('top')),
+                left: -parseInt(canvas.css('left'))
+            };
+        };
+
         var moveCanvas = function (offset) {
-            var newOffset = {
-                top: currentOffset.top + offset.top,
-                left: currentOffset.left + offset.left
+            var currentOffset = getCurrentOffset(),
+                boundary = getBoundaries(),
+                newOffset = {
+                    top: currentOffset.top + offset.top,
+                    left: currentOffset.left + offset.left
+                },
+                verticalSpeed = 1,
+                horizontalSpeed = 1;
+
+            // Slow down when we move outside the boundaries.
+            //
+
+            // The new position would be outside the vertical boundary.
+            if (newOffset.top < boundary.top || newOffset.top > boundary.bottom) {
+                verticalSpeed = opts.outOfBoundarySlowdown;
+            }
+            // The new position would be outside the horizontal boundary.
+            if (newOffset.left < boundary.left || newOffset.left > boundary.right) {
+                horizontalSpeed = opts.outOfBoundarySlowdown;
+            }
+
+            currentOffset = {
+                top: currentOffset.top + offset.top * verticalSpeed,
+                left: currentOffset.left + offset.left * horizontalSpeed
             };
 
-            var boundary = calculateBoundaries();
-
-            if (newOffset.top < boundary.top) {
-                newOffset.top = boundary.top;
-            }
-            if (newOffset.top > boundary.bottom) {
-                newOffset.top = boundary.bottom;
-            }
-
-            if (newOffset.left < boundary.left) {
-                newOffset.left = boundary.left;
-            }
-            if (newOffset.left > boundary.right) {
-                newOffset.left = boundary.right;
-            }
-
-            newOffset.left = Math.max(
-                newOffset.left,
-                boundary.left);
-
-            currentOffset = newOffset;
-
-            boxes.each(function () {
-                var top = parseInt($(this).attr('top')) - currentOffset.top;
-                var left = parseInt($(this).attr('left')) - currentOffset.left;
-                $(this).css('transform', 'translate3d(' + left + 'px, ' + top + 'px, 0px)');
+            canvas.stop().css({
+                left: -currentOffset.left,
+                top: -currentOffset.top
             });
         };
 
         var init = function () {
-            boxes.css({
-                position: 'absolute',
-                top: 0,
-                left: 0
+            boxes.each(function () {
+                $(this).css({
+                    position: 'absolute',
+                    top: $(this).attr('top') + 'px',
+                    left: $(this).attr('left') + 'px'
+                });
+            });
+
+            var boundary = getBoundaries();
+            canvas.css({
+                width: boundary.right,
+                height: boundary.bottom
             });
 
             moveCanvas({top: 0, left: 0});
@@ -104,24 +120,49 @@
             props.velocityY = (props.deltaY - props.latestDeltas[0].y) / 10;
         };
 
-        that.on('dragstart', function (event, props) {
-            props.previousDeltaX = 0;
-            props.previousDeltaY = 0;
-            props.lastEventTime = Date.now();
-            props.latestDeltas = [];
-        });
-        that.on('drag', {distance: 1, click: false}, function (event, props) {
-            calcVelocity(props);
+        that
+            .on('dragstart', function (event, props) {
+                props.previousDeltaX = 0;
+                props.previousDeltaY = 0;
+                props.lastEventTime = Date.now();
+                props.latestDeltas = [];
+            })
+            .on('drag', {distance: 1, click: false}, function (event, props) {
+                calcVelocity(props);
 
-            var moveBy = {
-                top: props.previousDeltaY - props.deltaY,
-                left: props.previousDeltaX - props.deltaX
-            };
+                var moveBy = {
+                    top: props.previousDeltaY - props.deltaY,
+                    left: props.previousDeltaX - props.deltaX
+                };
 
-            moveCanvas(moveBy);
-            props.previousDeltaX = props.deltaX;
-            props.previousDeltaY = props.deltaY;
-        });
+                moveCanvas(moveBy);
+                props.previousDeltaX = props.deltaX;
+                props.previousDeltaY = props.deltaY;
+            })
+            .on('dragend', function (event, props) {
+                var pos = {top: undefined, left: undefined},
+                    boundary = getBoundaries(),
+                    currentOffset = getCurrentOffset();
+
+                if (currentOffset.top < boundary.top) {
+                    pos.top = -boundary.top;
+                }
+                if (currentOffset.top > boundary.bottom) {
+                    pos.top = -boundary.bottom;
+                }
+                if (currentOffset.left < boundary.left) {
+                    pos.left = -boundary.left;
+                }
+                if (currentOffset.left > boundary.right) {
+                    pos.left = -boundary.right;
+                }
+
+                // If the canvas has been dragged outside the allowed boundaries, gracefully glide back with an animation.
+                var animationOptions = $.extend({
+                    duration: opts.snapBackDuration
+                }, opts.snapBackAnimationOptions);
+                canvas.animate(pos, animationOptions);
+            });
 
         init();
 
@@ -149,6 +190,9 @@
         position: fixed;
         top: 80%;
         left: 20%;
+        background-color: #fff;
+        padding: 1em;
+        width: 40%;
     }
     #pane {
         cursor: move;
@@ -160,37 +204,48 @@
         height: 100%;
     }
 
+    .panningpane-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+    }
+
     #pane .panebox {
         cursor: auto;
+        box-shadow: 3px 3px 5px #222;
     }
 </style>
 </head>
 <body>
 
 <div id="pane">
-    <div class="panebox" left="400" top="500" style="width: 200px; height: 100px; background-color: #f8f;">
-        Content 1
-    </div>
-    <div class="panebox" left="50" top="800" style="width: 200px; height: 200px; background-color: #ff8;">
-        Content 2
-    </div>
-    <div class="panebox" left="1000" top="100" style="width: 300px; height: 300px; background-color: #f88;">
-        Content 3
-    </div>
-    <div class="panebox" left="-200" top="-100" style="width: 500px; height: 200px; background-color: #8ff;">
-        Content 4
-    </div>
-    <div class="panebox" left="1400" top="1000" style="width: 400px; height: 600px; background-color: #008;">
-        Content 5
-    </div>
-    <div class="panebox" left="200" top="2000" style="width: 1000px; height: 600px; background-color: #f00;">
-        Content 6
-    </div>
-    <div class="panebox" left="-1200" top="500" style="width: 500px; height: 300px; background-color: #0f0;">
-        Content 7
-    </div>
-    <div class="panebox" left="-600" top="1200" style="width: 400px; height: 800px; background-color: #ddf;">
-        Content 8
+    <div class="panningpane-canvas">
+        <div class="panebox" left="400" top="500" style="width: 200px; height: 100px; background-color: #f8f;">
+            Content 1
+        </div>
+        <div class="panebox" left="50" top="800" style="width: 200px; height: 200px; background-color: #ff8;">
+            Content 2
+        </div>
+        <div class="panebox" left="1000" top="100" style="width: 300px; height: 300px; background-color: #f88;">
+            Content 3
+        </div>
+        <div class="panebox" left="-200" top="-100" style="width: 500px; height: 200px; background-color: #8ff;">
+            Content 4
+        </div>
+        <div class="panebox" left="1400" top="1000" style="width: 400px; height: 600px; background-color: #008;">
+            Content 5
+        </div>
+        <div class="panebox" left="200" top="2000" style="width: 1000px; height: 600px; background-color: #f00;">
+            Content 6
+        </div>
+        <div class="panebox" left="-1200" top="500" style="width: 500px; height: 300px; background-color: #0f0;">
+            Content 7
+        </div>
+        <div class="panebox" left="-600" top="1200" style="width: 400px; height: 800px; background-color: #ddf;">
+            Content 8
+        </div>
     </div>
 </div>
 
