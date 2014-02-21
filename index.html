@@ -3,25 +3,21 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
     <title></title>
+    <script type="text/javascript" src="bower_components/lodash/dist/lodash.js"></script>
     <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
     <script type="text/javascript" src="bower_components/jquery.event.drag-drop/event.drag/jquery.event.drag.js"></script>
     <script type="text/javascript" src="bower_components/jquery.event.drag-drop/event.drag/jquery.event.drag.live.js"></script>
 <script type="text/javascript">//<![CDATA[
     $.fn.panningpane = function (options) {
-        var options = $.extend({
-
+        var opts = $.extend({
+            
         }, options);
 
-        var that = $(this);
-        
-        var boxes = that.find('.panebox');
-        boxes.css({
-            position: 'absolute',
-            top: 0,
-            left: 0
-        });
+        var that = $(this),
+            boxes = that.find('.panebox'),
+            currentOffset = {top: 0, left: 0};
 
-        var currentOffset = {top: 0, left: 0};
+        /* Helpers */
 
         var moveCanvas = function (offset) {
             currentOffset = {top: currentOffset.top + offset.top, left: currentOffset.left + offset.left};
@@ -33,28 +29,57 @@
             });
         };
 
-        // Init canvas
-        moveCanvas({top: 0, left: 0});
+        var init = function () {
+            boxes.css({
+                position: 'absolute',
+                top: 0,
+                left: 0
+            });
+            moveCanvas({top: 0, left: 0});
+        };
 
-        /* dragging */
+        /* Drag-handler */
+
+        var calcVelocity = function (props) {
+            var now = Date.now(),
+                interval = 100;
+
+            props.latestDeltas.push({
+                time: now,
+                x: props.deltaX,
+                y: props.deltaY
+            });
+
+            props.latestDeltas = _.filter(props.latestDeltas, function (d) {
+                return now - interval <= d.time;
+            });
+
+            props.velocityX = (props.deltaX - props.latestDeltas[0].x) / 10;
+            props.velocityY = (props.deltaY - props.latestDeltas[0].y) / 10;
+        };
 
         that.on('dragstart', function (event, props) {
             props.previousDeltaX = 0;
             props.previousDeltaY = 0;
-            console.log('START');
+            props.lastEventTime = Date.now();
+            props.latestDeltas = [];
         });
-        that.drag(function (event, props) {
+        that.on('drag', {
+            not: '.panebox'
+        }, function (event, props) {
+            calcVelocity(props);
+
             var moveBy = {
                 top: props.deltaY - props.previousDeltaY,
                 left: props.deltaX - props.previousDeltaX
             };
-            console.log(moveBy);
+
             moveCanvas(moveBy);
             props.previousDeltaX = props.deltaX;
             props.previousDeltaY = props.deltaY;
-        }, {
-            not: '.panebox'
         });
+
+        init();
 
         return this;
     };
