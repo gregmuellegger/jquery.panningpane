@@ -33,11 +33,11 @@
 
         $(this).each(function () {
 
-            var that = $(this),
+            var pane = $(this),
                 frameDuration = 30,
                 velocityInterval = 100,
-                canvas = that.find('.panningpane-canvas'),
-                boxes = that.find('.panebox'),
+                canvas = pane.find('.panningpane-canvas'),
+                boxes = pane.find('.panebox'),
                 currentOffset = {x: 0, y: 0},
                 remainingVelocity = {x: 0, y: 0},
                 allowGliding = true;
@@ -56,13 +56,16 @@
                         right: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('left')) + $(this).outerWidth();  })))
                     };
 
+                boundary.right = Math.max(boundary.right, pane.width());
+                boundary.bottom = Math.max(boundary.bottom, pane.height());
+
                 boundary.top -= padding;
                 boundary.right += padding;
                 boundary.bottom += padding;
                 boundary.left -= padding;
 
-                boundary.right -= that.innerWidth();
-                boundary.bottom -= that.innerHeight();
+                boundary.right -= pane.innerWidth();
+                boundary.bottom -= pane.innerHeight();
 
                 return boundary;
             };
@@ -242,7 +245,7 @@
                 }
             };
 
-            that
+            pane
                 .on('mousedown', function () {
                     // Disallow sliding, the mouse shall have the full control
                     // over the canvas. But we cannot do this in the drag
