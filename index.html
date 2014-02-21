@@ -16,155 +16,159 @@
             padding: 200 
         }, options);
 
-        var that = $(this),
-            canvas = that.find('.panningpane-canvas'),
-            boxes = that.find('.panebox'),
-            currentOffset = {top: 0, left: 0};
+        $(this).each(function () {
 
-        /* Helpers */
+            var that = $(this),
+                canvas = that.find('.panningpane-canvas'),
+                boxes = that.find('.panebox'),
+                currentOffset = {top: 0, left: 0};
 
-        var getBoundaries = function () {
-            var boundary = {
-                top: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('top'));  }))),
-                left: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('left'));  }))),
-                bottom: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('top')) + $(this).outerHeight();  }))),
-                right: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('left')) + $(this).outerWidth();  })))
-            };
+            /* Helpers */
 
-            boundary.top -= opts.padding;
-            boundary.right += opts.padding;
-            boundary.bottom += opts.padding;
-            boundary.left -= opts.padding;
-
-            boundary.right -= that.innerWidth();
-            boundary.bottom -= that.innerHeight();
-
-            return boundary;
-        };
-
-        var getCurrentOffset = function () {
-            return {
-                top: -parseInt(canvas.css('top')),
-                left: -parseInt(canvas.css('left'))
-            };
-        };
-
-        var moveCanvas = function (offset) {
-            var currentOffset = getCurrentOffset(),
-                boundary = getBoundaries(),
-                newOffset = {
-                    top: currentOffset.top + offset.top,
-                    left: currentOffset.left + offset.left
-                },
-                verticalSpeed = 1,
-                horizontalSpeed = 1;
-
-            // Slow down when we move outside the boundaries.
-            //
-
-            // The new position would be outside the vertical boundary.
-            if (newOffset.top < boundary.top || newOffset.top > boundary.bottom) {
-                verticalSpeed = opts.outOfBoundarySlowdown;
-            }
-            // The new position would be outside the horizontal boundary.
-            if (newOffset.left < boundary.left || newOffset.left > boundary.right) {
-                horizontalSpeed = opts.outOfBoundarySlowdown;
-            }
-
-            currentOffset = {
-                top: currentOffset.top + offset.top * verticalSpeed,
-                left: currentOffset.left + offset.left * horizontalSpeed
-            };
-
-            canvas.stop().css({
-                left: -currentOffset.left,
-                top: -currentOffset.top
-            });
-        };
-
-        var init = function () {
-            boxes.each(function () {
-                $(this).css({
-                    position: 'absolute',
-                    top: $(this).attr('top') + 'px',
-                    left: $(this).attr('left') + 'px'
-                });
-            });
-
-            var boundary = getBoundaries();
-            canvas.css({
-                width: boundary.right,
-                height: boundary.bottom
-            });
-
-            moveCanvas({top: 0, left: 0});
-        };
-
-        /* Drag-handler */
-
-        var calcVelocity = function (props) {
-            var now = Date.now(),
-                interval = 100;
-
-            props.latestDeltas.push({
-                time: now,
-                x: props.deltaX,
-                y: props.deltaY
-            });
-
-            props.latestDeltas = _.filter(props.latestDeltas, function (d) {
-                return now - interval <= d.time;
-            });
-
-            props.velocityX = (props.deltaX - props.latestDeltas[0].x) / 10;
-            props.velocityY = (props.deltaY - props.latestDeltas[0].y) / 10;
-        };
-
-        that
-            .on('dragstart', function (event, props) {
-                props.previousDeltaX = 0;
-                props.previousDeltaY = 0;
-                props.lastEventTime = Date.now();
-                props.latestDeltas = [];
-            })
-            .on('drag', {distance: 1, click: false}, function (event, props) {
-                calcVelocity(props);
-
-                var moveBy = {
-                    top: props.previousDeltaY - props.deltaY,
-                    left: props.previousDeltaX - props.deltaX
+            var getBoundaries = function () {
+                var boundary = {
+                    top: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('top'));  }))),
+                    left: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('left'));  }))),
+                    bottom: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('top')) + $(this).outerHeight();  }))),
+                    right: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('left')) + $(this).outerWidth();  })))
                 };
 
-                moveCanvas(moveBy);
-                props.previousDeltaX = props.deltaX;
-                props.previousDeltaY = props.deltaY;
-            })
-            .on('dragend', function (event, props) {
-                var pos = {top: undefined, left: undefined},
+                boundary.top -= opts.padding;
+                boundary.right += opts.padding;
+                boundary.bottom += opts.padding;
+                boundary.left -= opts.padding;
+
+                boundary.right -= that.innerWidth();
+                boundary.bottom -= that.innerHeight();
+
+                return boundary;
+            };
+
+            var getCurrentOffset = function () {
+                return {
+                    top: -parseInt(canvas.css('top')),
+                    left: -parseInt(canvas.css('left'))
+                };
+            };
+
+            var moveCanvas = function (offset) {
+                var currentOffset = getCurrentOffset(),
                     boundary = getBoundaries(),
-                    currentOffset = getCurrentOffset();
+                    newOffset = {
+                        top: currentOffset.top + offset.top,
+                        left: currentOffset.left + offset.left
+                    },
+                    verticalSpeed = 1,
+                    horizontalSpeed = 1;
 
-                if (currentOffset.top < boundary.top) {
-                    pos.top = -boundary.top;
+                // Slow down when we move outside the boundaries.
+                //
+
+                // The new position would be outside the vertical boundary.
+                if (newOffset.top < boundary.top || newOffset.top > boundary.bottom) {
+                    verticalSpeed = opts.outOfBoundarySlowdown;
                 }
-                if (currentOffset.top > boundary.bottom) {
-                    pos.top = -boundary.bottom;
-                }
-                if (currentOffset.left < boundary.left) {
-                    pos.left = -boundary.left;
-                }
-                if (currentOffset.left > boundary.right) {
-                    pos.left = -boundary.right;
+                // The new position would be outside the horizontal boundary.
+                if (newOffset.left < boundary.left || newOffset.left > boundary.right) {
+                    horizontalSpeed = opts.outOfBoundarySlowdown;
                 }
 
-                // If the canvas has been dragged outside the allowed boundaries, gracefully glide back with an animation.
-                var animationOptions = $.extend({
-                    duration: opts.snapBackDuration
-                }, opts.snapBackAnimationOptions);
-                canvas.animate(pos, animationOptions);
-            });
+                currentOffset = {
+                    top: currentOffset.top + offset.top * verticalSpeed,
+                    left: currentOffset.left + offset.left * horizontalSpeed
+                };
 
-        init();
+                canvas.stop().css({
+                    left: -currentOffset.left,
+                    top: -currentOffset.top
+                });
+            };
+
+            var init = function () {
+                boxes.each(function () {
+                    $(this).css({
+                        position: 'absolute',
+                        top: $(this).attr('top') + 'px',
+                        left: $(this).attr('left') + 'px'
+                    });
+                });
+
+                var boundary = getBoundaries();
+                canvas.css({
+                    width: boundary.right,
+                    height: boundary.bottom
+                });
+
+                moveCanvas({top: 0, left: 0});
+            };
+
+            /* Drag-handler */
+
+            var calcVelocity = function (props) {
+                var now = Date.now(),
+                    interval = 100;
+
+                props.latestDeltas.push({
+                    time: now,
+                    x: props.deltaX,
+                    y: props.deltaY
+                });
+
+                props.latestDeltas = _.filter(props.latestDeltas, function (d) {
+                    return now - interval <= d.time;
+                });
+
+                props.velocityX = (props.deltaX - props.latestDeltas[0].x) / 10;
+                props.velocityY = (props.deltaY - props.latestDeltas[0].y) / 10;
+            };
+
+            that
+                .on('dragstart', function (event, props) {
+                    props.previousDeltaX = 0;
+                    props.previousDeltaY = 0;
+                    props.lastEventTime = Date.now();
+                    props.latestDeltas = [];
+                })
+                .on('drag', {distance: 1, click: false}, function (event, props) {
+                    calcVelocity(props);
+
+                    var moveBy = {
+                        top: props.previousDeltaY - props.deltaY,
+                        left: props.previousDeltaX - props.deltaX
+                    };
+
+                    moveCanvas(moveBy);
+                    props.previousDeltaX = props.deltaX;
+                    props.previousDeltaY = props.deltaY;
+                })
+                .on('dragend', function (event, props) {
+                    var pos = {top: undefined, left: undefined},
+                        boundary = getBoundaries(),
+                        currentOffset = getCurrentOffset();
+
+                    if (currentOffset.top < boundary.top) {
+                        pos.top = -boundary.top;
+                    }
+                    if (currentOffset.top > boundary.bottom) {
+                        pos.top = -boundary.bottom;
+                    }
+                    if (currentOffset.left < boundary.left) {
+                        pos.left = -boundary.left;
+                    }
+                    if (currentOffset.left > boundary.right) {
+                        pos.left = -boundary.right;
+                    }
+
+                    // If the canvas has been dragged outside the allowed boundaries, gracefully snap back with an animation.
+                    var animationOptions = $.extend({
+                        duration: opts.snapBackDuration
+                    }, opts.snapBackAnimationOptions);
+                    canvas.animate(pos, animationOptions);
+                });
+
+            init();
+
+        });
 
         return this;
     };
