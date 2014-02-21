@@ -1,10 +1,31 @@
 (function ($) {
     $.fn.panningpane = function (options) {
+        /**
+         * Configuration options:
+         *   outOfBoundarySlowdown: A factor of how much slower shall the
+         *      canvas move when it is dragged outside the boundary.
+         *
+         *   snapBackDuration: Animation duration till the canvas snaps back
+         *      when it's dragged outside the boundary.
+         *
+         *   snapBackAnimationOptions: TODO
+         *
+         *   glideAcceleration: A factor of how much slower the velocity will
+         *      be after the user released the dragging. 
+         *
+         *   outOfBoundaryGlideAcceleration: A factor of how much slower the
+         *      velocity will be after the user released the dragging. This
+         *      one is used over glideAcceleration when the canvas moved
+         *      outside the boundaries.
+         *   
+         *   padding: A value of how many pixels shall be added to the canvas
+         *      on every side. That prevents the pane boxes to stick on the
+         *      very edge of the canvas.
+         */
         var opts = $.extend({
             outOfBoundarySlowdown: 0.5,
             snapBackDuration: 500,
             snapBackAnimationOptions: {},
-            glidePadding: 300,
             glideAcceleration: 0.9,
             outOfBoundaryGlideAcceleration: 0.5,
             padding: 200 
@@ -19,12 +40,15 @@
                 boxes = that.find('.panebox'),
                 currentOffset = {x: 0, y: 0},
                 remainingVelocity = {x: 0, y: 0},
-                allowSliding = true;
+                allowGliding = true;
 
             /* Helpers */
 
-            var getBoundary = function (additionalPadding) {
-                var padding = opts.padding + (additionalPadding !== undefined ? additionalPadding : 0),
+            /*
+             * Return the edges for the canvas, including some padding.
+             */
+            var getBoundary = function () {
+                var padding = opts.padding;
                     boundary = {
                         top: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('top'));  }))),
                         left: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('left'));  }))),
@@ -43,6 +67,11 @@
                 return boundary;
             };
 
+            /*
+             * Returns true if the given point is out of the canvas' boundary.
+             * If axis is given, only that axis will be taken into account for
+             * the boundary calculation.
+             */
             var isOutOfBoundary = function (offset, axis) {
                 var includeX = axis != 'y',
                     includeY = axis != 'x',
@@ -56,6 +85,9 @@
                 return false;
             };
 
+            /*
+             * Get the current offset for the canvas element.
+             */
             var getCurrentOffset = function () {
                 return {
                     x: -parseInt(canvas.css('left')),
@@ -63,6 +95,9 @@
                 };
             };
 
+            /*
+             * Move canvas by a given amount of pixels on the x and y axis.
+             */
             var moveCanvas = function (offset) {
                 var currentOffset = getCurrentOffset(),
                     boundary = getBoundary(),
@@ -116,7 +151,7 @@
 
             /* Drag-handler */
 
-            var calcVelocity = function (props) {
+            var calculateVelocity = function (props) {
                 var now = Date.now(),
                     velocityInterval = 100;
 
@@ -136,6 +171,10 @@
                 };
             };
 
+            /*
+             * Glide the canvas back into view if it was dragged outside of
+             * its boundaries.
+             */
             var snapBack = function (axis) {
                 var pos = {top: undefined, left: undefined},
                     boundary = getBoundary(),
@@ -158,7 +197,6 @@
                 if (axis === 'x') { pos.top = undefined; }
                 if (axis === 'y') { pos.left = undefined; }
 
-                console.log('SNAP BACK');
                 // If the canvas has been dragged outside the allowed boundaries, gracefully snap back with an animation.
                 var animationOptions = $.extend({
                     duration: opts.snapBackDuration
@@ -166,9 +204,15 @@
                 canvas.animate(pos, animationOptions);
             };
 
+            /*
+             * Takes the drag-event props and an axis that it should handle.
+             * Then determines if the there is still some velocity left and
+             * use that to move the canvas further after the user released the
+             * mouse button.
+             */
             var handleRestVelocity = function (props, axis) {
-                console.log();
-                if (!allowSliding) {
+                // Don'T handle velocity if some dragging is in progress.
+                if (!allowGliding) {
                     return;
                 }
 
@@ -204,18 +248,17 @@
                     // over the canvas. But we cannot do this in the drag
                     // event, since the dragging starts earliest after the
                     // mouse was moved for one pixel.
-                    allowSliding = false;
+                    allowGliding = false;
                     canvas.stop();
                 })
                 .on('dragstart', function (event, props) {
-
                     props.previousDeltaX = 0;
                     props.previousDeltaY = 0;
                     props.lastEventTime = Date.now();
                     props.latestDeltas = [];
                 })
                 .on('drag', {distance: 1, click: false}, function (event, props) {
-                    calcVelocity(props);
+                    calculateVelocity(props);
 
                     var moveBy = {
                         x: props.previousDeltaX - props.deltaX,
@@ -228,8 +271,10 @@
                 })
                 .on('dragend', function (event, props) {
                     // Allow sliding again, we are not dragging any more.
-                    allowSliding = true;
+                    allowGliding = true;
 
+                    // Now handle the velocity that is still there and move
+                    // the canvas further.
                     _.delay(handleRestVelocity, frameDuration, props, 'x');
                     _.delay(handleRestVelocity, frameDuration, props, 'y');
                 });
