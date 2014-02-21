@@ -158,6 +158,7 @@
                 if (axis === 'x') { pos.top = undefined; }
                 if (axis === 'y') { pos.left = undefined; }
 
+                console.log('SNAP BACK');
                 // If the canvas has been dragged outside the allowed boundaries, gracefully snap back with an animation.
                 var animationOptions = $.extend({
                     duration: opts.snapBackDuration
@@ -166,6 +167,7 @@
             };
 
             var handleRestVelocity = function (props, axis) {
+                console.log();
                 if (!allowSliding) {
                     return;
                 }
@@ -205,10 +207,6 @@
                     allowSliding = false;
                     canvas.stop();
                 })
-                .on('mouseup', function () {
-                    // Allow sliding again, we are not dragging at the moment.
-                    allowSliding = true;
-                })
                 .on('dragstart', function (event, props) {
 
                     props.previousDeltaX = 0;
@@ -229,9 +227,8 @@
                     props.previousDeltaY = props.deltaY;
                 })
                 .on('dragend', function (event, props) {
-                    var pos = {x: undefined, y: undefined},
-                        boundary = getBoundary(),
-                        currentOffset = getCurrentOffset();
+                    // Allow sliding again, we are not dragging any more.
+                    allowSliding = true;
 
                     _.delay(handleRestVelocity, frameDuration, props, 'x');
                     _.delay(handleRestVelocity, frameDuration, props, 'y');
