@@ -13,30 +13,38 @@
             outOfBoundarySlowdown: 0.5,
             snapBackDuration: 500,
             snapBackAnimationOptions: {},
+            glidePadding: 300,
+            glideAcceleration: 0.9,
+            outOfBoundaryGlideAcceleration: 0.5,
             padding: 200 
         }, options);
 
         $(this).each(function () {
 
             var that = $(this),
+                frameDuration = 30,
+                velocityInterval = 100,
                 canvas = that.find('.panningpane-canvas'),
                 boxes = that.find('.panebox'),
-                currentOffset = {top: 0, left: 0};
+                currentOffset = {x: 0, y: 0},
+                remainingVelocity = {x: 0, y: 0},
+                allowSliding = true;
 
             /* Helpers */
 
-            var getBoundaries = function () {
-                var boundary = {
-                    top: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('top'));  }))),
-                    left: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('left'));  }))),
-                    bottom: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('top')) + $(this).outerHeight();  }))),
-                    right: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('left')) + $(this).outerWidth();  })))
-                };
+            var getBoundary = function (additionalPadding) {
+                var padding = opts.padding + (additionalPadding !== undefined ? additionalPadding : 0),
+                    boundary = {
+                        top: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('top'));  }))),
+                        left: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('left'));  }))),
+                        bottom: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('top')) + $(this).outerHeight();  }))),
+                        right: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('left')) + $(this).outerWidth();  })))
+                    };
 
-                boundary.top -= opts.padding;
-                boundary.right += opts.padding;
-                boundary.bottom += opts.padding;
-                boundary.left -= opts.padding;
+                boundary.top -= padding;
+                boundary.right += padding;
+                boundary.bottom += padding;
+                boundary.left -= padding;
 
                 boundary.right -= that.innerWidth();
                 boundary.bottom -= that.innerHeight();
@@ -44,19 +52,32 @@
                 return boundary;
             };
 
+            var isOutOfBoundary = function (offset, axis) {
+                var includeX = axis != 'y',
+                    includeY = axis != 'x',
+                    boundary = getBoundary();
+                if (includeX && (offset.x < boundary.left || offset.x > boundary.right)) {
+                    return true;
+                }
+                if (includeY && (offset.y < boundary.top || offset.y > boundary.bottom)) {
+                    return true;
+                }
+                return false;
+            };
+
             var getCurrentOffset = function () {
                 return {
-                    top: -parseInt(canvas.css('top')),
-                    left: -parseInt(canvas.css('left'))
+                    x: -parseInt(canvas.css('left')),
+                    y: -parseInt(canvas.css('top'))
                 };
             };
 
             var moveCanvas = function (offset) {
                 var currentOffset = getCurrentOffset(),
-                    boundary = getBoundaries(),
+                    boundary = getBoundary(),
                     newOffset = {
-                        top: currentOffset.top + offset.top,
-                        left: currentOffset.left + offset.left
+                        x: currentOffset.x + offset.x,
+                        y: currentOffset.y + offset.y
                     },
                     verticalSpeed = 1,
                     horizontalSpeed = 1;
@@ -65,22 +86,22 @@
                 //
 
                 // The new position would be outside the vertical boundary.
-                if (newOffset.top < boundary.top || newOffset.top > boundary.bottom) {
+                if (newOffset.y < boundary.top || newOffset.y > boundary.bottom) {
                     verticalSpeed = opts.outOfBoundarySlowdown;
                 }
                 // The new position would be outside the horizontal boundary.
-                if (newOffset.left < boundary.left || newOffset.left > boundary.right) {
+                if (newOffset.x < boundary.left || newOffset.x > boundary.right) {
                     horizontalSpeed = opts.outOfBoundarySlowdown;
                 }
 
                 currentOffset = {
-                    top: currentOffset.top + offset.top * verticalSpeed,
-                    left: currentOffset.left + offset.left * horizontalSpeed
+                    x: currentOffset.x + offset.x * horizontalSpeed,
+                    y: currentOffset.y + offset.y * verticalSpeed
                 };
 
-                canvas.stop().css({
-                    left: -currentOffset.left,
-                    top: -currentOffset.top
+                canvas.css({
+                    left: -currentOffset.x,
+                    top: -currentOffset.y
                 });
             };
 
@@ -93,20 +114,20 @@
                     });
                 });
 
-                var boundary = getBoundaries();
+                var boundary = getBoundary();
                 canvas.css({
                     width: boundary.right,
                     height: boundary.bottom
                 });
 
-                moveCanvas({top: 0, left: 0});
+                moveCanvas({x: 0, y: 0});
             };
 
             /* Drag-handler */
 
             var calcVelocity = function (props) {
                 var now = Date.now(),
-                    interval = 100;
+                    velocityInterval = 100;
 
                 props.latestDeltas.push({
                     time: now,
@@ -115,15 +136,90 @@
                 });
 
                 props.latestDeltas = _.filter(props.latestDeltas, function (d) {
-                    return now - interval <= d.time;
+                    return now - velocityInterval <= d.time;
                 });
 
-                props.velocityX = (props.deltaX - props.latestDeltas[0].x) / 10;
-                props.velocityY = (props.deltaY - props.latestDeltas[0].y) / 10;
+                props.velocity = {
+                    x: (props.deltaX - props.latestDeltas[0].x) / 10,
+                    y: (props.deltaY - props.latestDeltas[0].y) / 10
+                };
+            };
+
+            var snapBack = function (axis) {
+                var pos = {top: undefined, left: undefined},
+                    boundary = getBoundary(),
+                    currentOffset = getCurrentOffset();
+
+                if (currentOffset.y < boundary.top) {
+                    pos.top = -boundary.top;
+                }
+                if (currentOffset.y > boundary.bottom) {
+                    pos.top = -boundary.bottom;
+                }
+                if (currentOffset.x < boundary.left) {
+                    pos.left = -boundary.left;
+                }
+                if (currentOffset.x > boundary.right) {
+                    pos.left = -boundary.right;
+                }
+
+                // If axis is set, then ignore the other axis.
+                if (axis === 'x') { pos.top = undefined; }
+                if (axis === 'y') { pos.left = undefined; }
+
+                // If the canvas has been dragged outside the allowed boundaries, gracefully snap back with an animation.
+                var animationOptions = $.extend({
+                    duration: opts.snapBackDuration
+                }, opts.snapBackAnimationOptions);
+                canvas.animate(pos, animationOptions);
+            };
+
+            var handleRestVelocity = function (props, axis) {
+                if (!allowSliding) {
+                    return;
+                }
+
+                var outOfBoundary = isOutOfBoundary(getCurrentOffset(), axis),
+                    acceleration = outOfBoundary ? opts.outOfBoundaryGlideAcceleration : opts.glideAcceleration,
+                    velocity = props.velocity[axis] * acceleration,
+                    distance = velocity * (velocityInterval / frameDuration),
+                    lowThreshold = (frameDuration / velocityInterval);
+                
+                props.velocity[axis] = velocity;
+
+                moveCanvas({
+                    x: axis == 'x' ? -distance : 0,
+                    y: axis == 'y' ? -distance : 0
+                });
+
+                if (Math.abs(velocity) > lowThreshold) {
+                    _.delay(handleRestVelocity, frameDuration, props, axis);
+                } else {
+                    // Both axis has stopped, so we can snap the canvas back for both axis.
+                    if (props.velocity.x < lowThreshold && props.velocity.y < lowThreshold) {
+                        canvas.stop();
+                        snapBack();
+                    } else {
+                        snapBack(axis);
+                    }
+                }
             };
 
             that
+                .on('mousedown', function () {
+                    // Disallow sliding, the mouse shall have the full control
+                    // over the canvas. But we cannot do this in the drag
+                    // event, since the dragging starts earliest after the
+                    // mouse was moved for one pixel.
+                    allowSliding = false;
+                    canvas.stop();
+                })
+                .on('mouseup', function () {
+                    // Allow sliding again, we are not dragging at the moment.
+                    allowSliding = true;
+                })
                 .on('dragstart', function (event, props) {
+
                     props.previousDeltaX = 0;
                     props.previousDeltaY = 0;
                     props.lastEventTime = Date.now();
@@ -133,8 +229,8 @@
                     calcVelocity(props);
 
                     var moveBy = {
-                        top: props.previousDeltaY - props.deltaY,
-                        left: props.previousDeltaX - props.deltaX
+                        x: props.previousDeltaX - props.deltaX,
+                        y: props.previousDeltaY - props.deltaY
                     };
 
                     moveCanvas(moveBy);
@@ -142,28 +238,12 @@
                     props.previousDeltaY = props.deltaY;
                 })
                 .on('dragend', function (event, props) {
-                    var pos = {top: undefined, left: undefined},
-                        boundary = getBoundaries(),
+                    var pos = {x: undefined, y: undefined},
+                        boundary = getBoundary(),
                         currentOffset = getCurrentOffset();
 
-                    if (currentOffset.top < boundary.top) {
-                        pos.top = -boundary.top;
-                    }
-                    if (currentOffset.top > boundary.bottom) {
-                        pos.top = -boundary.bottom;
-                    }
-                    if (currentOffset.left < boundary.left) {
-                        pos.left = -boundary.left;
-                    }
-                    if (currentOffset.left > boundary.right) {
-                        pos.left = -boundary.right;
-                    }
-
-                    // If the canvas has been dragged outside the allowed boundaries, gracefully snap back with an animation.
-                    var animationOptions = $.extend({
-                        duration: opts.snapBackDuration
-                    }, opts.snapBackAnimationOptions);
-                    canvas.animate(pos, animationOptions);
+                    _.delay(handleRestVelocity, frameDuration, props, 'x');
+                    _.delay(handleRestVelocity, frameDuration, props, 'y');
                 });
 
             init();
