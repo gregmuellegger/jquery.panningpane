@@ -28,7 +28,8 @@
             snapBackAnimationOptions: {},
             glideAcceleration: 0.9,
             outOfBoundaryGlideAcceleration: 0.5,
-            padding: 200 
+            padding: 200,
+            clickCenterDuration: 500
         }, options);
 
         $(this).each(function () {
@@ -40,6 +41,7 @@
                 boxes = pane.find('.panebox'),
                 currentOffset = {x: 0, y: 0},
                 remainingVelocity = {x: 0, y: 0},
+                dragging = false;
                 allowGliding = true;
 
             /* Helpers */
@@ -99,7 +101,10 @@
             };
 
             /*
-             * Move canvas by a given amount of pixels on the x and y axis.
+             * Move view on canvas by a given amount of pixels on the x and y
+             * axis. For example a negative value on the x axis will move the
+             * canvas to the right. Which seems as the view on the canvas is
+             * moving to the left.
              */
             var moveCanvas = function (offset) {
                 var currentOffset = getCurrentOffset(),
@@ -134,6 +139,22 @@
                 });
             };
 
+            /*
+             * Center a panebox as far as possible.
+             */
+            var centerBox = function () {
+                var position = $(this).position();
+                var destination = {
+                    x: position.left + ($(this).outerWidth() / 2) - ($(window).width() / 2),
+                    y: position.top + ($(this).outerHeight() / 2) - ($(window).height() / 2)
+                };
+
+                canvas.animate({
+                    left: -destination.x,
+                    top: -destination.y
+                }, {duration: opts.clickCenterDuration});
+            };
+
             var init = function () {
                 boxes.each(function () {
                     $(this).css({
@@ -141,6 +162,12 @@
                         top: $(this).attr('top') + 'px',
                         left: $(this).attr('left') + 'px'
                     });
+                });
+
+                boxes.filter('[data-select="select"]').on('click', function (event) {
+                    if (dragging === false) {
+                        centerBox.call(this);
+                    }
                 });
 
                 var boundary = getBoundary();
@@ -255,6 +282,7 @@
                     canvas.stop();
                 })
                 .on('dragstart', function (event, props) {
+                    dragging = true;
                     props.previousDeltaX = 0;
                     props.previousDeltaY = 0;
                     props.lastEventTime = Date.now();
@@ -280,6 +308,11 @@
                     // the canvas further.
                     _.delay(handleRestVelocity, frameDuration, props, 'x');
                     _.delay(handleRestVelocity, frameDuration, props, 'y');
+
+                    // We need to delay the setting of the dragging variable
+                    // since otherwise would we allow the bubbling click on a
+                    // panebox.
+                    _.delay(function () { dragging = false; }, 0);
                 });
 
             init();
