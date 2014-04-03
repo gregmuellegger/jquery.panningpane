@@ -1,12 +1,9 @@
 {
   "name": "panningpane",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "dependencies": {
-    "jquery": "~1.10.2",
-    "jquery.event.drag-drop": "~2.2.1",
-    "lodash": "~2.4.1"
-  },
-  "resolutions": {
-    "jquery": "~1.10.2"
+    "jquery": "^1.7",
+    "jquery.event.drag-drop": "^2.0",
+    "lodash": "^2.0"
   }
 }
