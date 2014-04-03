@@ -3,6 +3,7 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
     <title></title>
+    <link rel="stylesheet" href="jquery.panningpane.css" />
     <script type="text/javascript" src="bower_components/lodash/dist/lodash.js"></script>
     <script type="text/javascript" src="bower_components/jquery/jquery.js"></script>
     <script type="text/javascript" src="bower_components/jquery.event.drag-drop/event.drag/jquery.event.drag.js"></script>
@@ -11,7 +12,7 @@
 
     <script type="text/javascript">//<![CDATA[
         $(document).ready(function () {
-            $('#pane').panningpane({
+            $('.panningpane').panningpane({
 
             }).css('height', $(window).height() + 'px');
 
@@ -36,33 +37,11 @@
         padding: 1em;
         width: 40%;
     }
-    #pane {
-        cursor: move;
-        overflow: hidden;
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-    }
-
-    .panningpane-canvas {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-    }
-
-    #pane .panebox {
-        cursor: auto;
-        box-shadow: 3px 3px 5px #222;
-    }
 </style>
 </head>
 <body>
 
-<div id="pane">
+<div class="panningpane">
     <div class="panningpane-canvas">
         <div class="panebox" data-select="select" left="400" top="500" style="width: 200px; height: 100px; background-color: #f8f;">
             Content 1
