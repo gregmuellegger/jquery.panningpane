@@ -23,6 +23,7 @@
          *      very edge of the canvas.
          */
         var opts = $.extend({
+            scale: 1,
             outOfBoundarySlowdown: 0.5,
             snapBackDuration: 500,
             snapBackAnimationOptions: {},
@@ -31,6 +32,28 @@
             padding: 200,
             clickCenterDuration: 500
         }, options);
+
+        /**
+           Some developer documentation:
+          
+            
+           On scaling
+           ----------
+
+           There is the ``scale`` opt that can be given. It shrinks the whole
+           panningpane by the factor that is given. So to make everything half
+           the size, 0.5 is given.
+
+           The width height of the panningpane element is not changed, however
+           these elements are affected:
+
+           - The .panningpane-canvas width and height is scaled
+           - The panebox width and height is scaled
+           - The panebox position is scaled
+
+        */
+          
+          
 
         $(this).each(function () {
 
@@ -157,11 +180,25 @@
 
             var init = function () {
                 boxes.each(function () {
+                    var top = parseInt($(this).attr('top'));
+                    var left = parseInt($(this).attr('left'));
+                    var width = $(this).width();
+                    var height = $(this).height();
+
+                    top = top * opts.scale;
+                    left = left * opts.scale;
+                    width = width * opts.scale;
+                    height = height * opts.scale;
+
                     $(this).css({
                         position: 'absolute',
-                        top: $(this).attr('top') + 'px',
-                        left: $(this).attr('left') + 'px'
+                        top: top + 'px',
+                        left: left + 'px',
+                        width: width + 'px',
+                        height: height + 'px'
                     });
+                    $(this).attr('top', top);
+                    $(this).attr('left', left);
                 });
 
                 boxes.filter('[data-select="select"]').on('click', function (event) {
@@ -171,6 +208,7 @@
                 });
 
                 var boundary = getBoundary();
+                console.log(boundary);
                 canvas.css({
                     width: boundary.right,
                     height: boundary.bottom

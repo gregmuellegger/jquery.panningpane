@@ -12,8 +12,24 @@
 
     <script type="text/javascript">//<![CDATA[
         $(document).ready(function () {
-            $('.panningpane').panningpane({
+            var scales = [
+                {mediaquery: window.matchMedia("(max-width: 768px)"), scale: 0.5},
+                {mediaquery: window.matchMedia("(max-width: 1280px)"), scale: 0.8}
+            ];
 
+            var getScale = function () {
+                var scale = 1.0;
+                $.each(scales, function (i, item) {
+                    if (item.mediaquery.matches) {
+                        scale = item.scale;
+                        return false;
+                    }
+                });
+                return scale;
+            };
+
+            $('.panningpane').panningpane({
+                scale: getScale()
             }).css('height', $(window).height() + 'px');
 
             $('.panebox').click(function () {
