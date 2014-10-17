@@ -11,13 +11,13 @@
          *   snapBackAnimationOptions: TODO
          *
          *   glideAcceleration: A factor of how much slower the velocity will
-         *      be after the user released the dragging. 
+         *      be after the user released the dragging.
          *
          *   outOfBoundaryGlideAcceleration: A factor of how much slower the
          *      velocity will be after the user released the dragging. This
          *      one is used over glideAcceleration when the canvas moved
          *      outside the boundaries.
-         *   
+         *
          *   padding: A value of how many pixels shall be added to the canvas
          *      on every side. That prevents the pane boxes to stick on the
          *      very edge of the canvas.
@@ -35,8 +35,8 @@
 
         /**
            Some developer documentation:
-          
-            
+
+
            On scaling
            ----------
 
@@ -52,86 +52,41 @@
            - The panebox position is scaled
 
         */
-          
-          
+
+
 
         $(this).each(function () {
 
-            var pane = $(this),
-                frameDuration = 30,
+            var frameDuration = 30,
                 velocityInterval = 100,
-                canvas = pane.find('.panningpane-canvas'),
-                boxes = pane.find('.panebox'),
-                currentOffset = {x: 0, y: 0},
-                remainingVelocity = {x: 0, y: 0},
-                dragging = false;
+                dragging = false,
                 allowGliding = true;
 
-            /* Helpers */
-
-            /*
-             * Return the edges for the canvas, including some padding.
-             */
-            var getBoundary = function () {
-                var padding = opts.padding;
-                    boundary = {
-                        top: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('top'));  }))),
-                        left: Math.min(0, _.min(boxes.map(function () { return parseInt($(this).attr('left'));  }))),
-                        bottom: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('top')) + $(this).outerHeight();  }))),
-                        right: Math.max(0, _.max(boxes.map(function () { return parseInt($(this).attr('left')) + $(this).outerWidth();  })))
-                    };
-
-                boundary.right = Math.max(boundary.right, pane.width());
-                boundary.bottom = Math.max(boundary.bottom, pane.height());
-
-                boundary.top -= padding;
-                boundary.right += padding;
-                boundary.bottom += padding;
-                boundary.left -= padding;
-
-                boundary.right -= pane.innerWidth();
-                boundary.bottom -= pane.innerHeight();
-
-                return boundary;
+            var Canvas = function (element, options, pane) {
+                this.$element = $(element);
+                this.options = $.extend({}, this.defaults, options);
+                this.pane = pane;
             };
 
-            /*
-             * Returns true if the given point is out of the canvas' boundary.
-             * If axis is given, only that axis will be taken into account for
-             * the boundary calculation.
-             */
-            var isOutOfBoundary = function (offset, axis) {
-                var includeX = axis != 'y',
-                    includeY = axis != 'x',
-                    boundary = getBoundary();
-                if (includeX && (offset.x < boundary.left || offset.x > boundary.right)) {
-                    return true;
-                }
-                if (includeY && (offset.y < boundary.top || offset.y > boundary.bottom)) {
-                    return true;
-                }
-                return false;
+            Canvas.prototype.defaults = {};
+
+            Canvas.prototype.setup = function () {
+
             };
 
             /*
              * Get the current offset for the canvas element.
              */
-            var getCurrentOffset = function () {
+            Canvas.prototype.getCurrentOffset = function () {
                 return {
-                    x: -parseInt(canvas.css('left')),
-                    y: -parseInt(canvas.css('top'))
+                    x: -parseInt(this.$element.css('left')),
+                    y: -parseInt(this.$element.css('top'))
                 };
             };
 
-            /*
-             * Move view on canvas by a given amount of pixels on the x and y
-             * axis. For example a negative value on the x axis will move the
-             * canvas to the right. Which seems as the view on the canvas is
-             * moving to the left.
-             */
-            var moveCanvas = function (offset) {
-                var currentOffset = getCurrentOffset(),
-                    boundary = getBoundary(),
+            Canvas.prototype.move = function (offset) {
+                var currentOffset = this.getCurrentOffset(),
+                    boundary = this.getBoundary(),
                     newOffset = {
                         x: currentOffset.x + offset.x,
                         y: currentOffset.y + offset.y
@@ -144,11 +99,11 @@
 
                 // The new position would be outside the vertical boundary.
                 if (newOffset.y < boundary.top || newOffset.y > boundary.bottom) {
-                    verticalSpeed = opts.outOfBoundarySlowdown;
+                    verticalSpeed = this.options.outOfBoundarySlowdown;
                 }
                 // The new position would be outside the horizontal boundary.
                 if (newOffset.x < boundary.left || newOffset.x > boundary.right) {
-                    horizontalSpeed = opts.outOfBoundarySlowdown;
+                    horizontalSpeed = this.options.outOfBoundarySlowdown;
                 }
 
                 currentOffset = {
@@ -156,70 +111,219 @@
                     y: currentOffset.y + offset.y * verticalSpeed
                 };
 
-                canvas.css({
+                this.$element.css({
                     left: -currentOffset.x,
                     top: -currentOffset.y
                 });
             };
 
+            // Stop the canvas from animating.
+            Canvas.prototype.stop = function () {
+                this.$element.stop();
+            };
+
+            /*
+             * Return the edges for the canvas, including some padding.
+             */
+            Canvas.prototype.getBoundary = function () {
+                var padding = this.options.padding;
+                    boundary = {
+                        top: Math.min(0, _.min(this.pane.boxes.map(function (box) { return box.getTop(); }))),
+                        left: Math.min(0, _.min(this.pane.boxes.map(function (box) { return box.getLeft(); }))),
+                        bottom: Math.max(0, _.max(this.pane.boxes.map(function (box) { return box.getBottom(); }))),
+                        right: Math.max(0, _.max(this.pane.boxes.map(function (box) { return box.getRight(); })))
+                    };
+
+                boundary.right = Math.max(boundary.right, this.pane.$element.width());
+                boundary.bottom = Math.max(boundary.bottom, this.pane.$element.height());
+
+                boundary.top -= padding;
+                boundary.right += padding;
+                boundary.bottom += padding;
+                boundary.left -= padding;
+
+                boundary.right -= this.pane.$element.innerWidth();
+                boundary.bottom -= this.pane.$element.innerHeight();
+
+                return boundary;
+            };
+
+            /*
+             * Returns true if the given point is out of the canvas' boundary.
+             * If axis is given, only that axis will be taken into account for
+             * the boundary calculation.
+             */
+            Canvas.prototype.isOutOfBoundary = function (offset, axis) {
+                var includeX = axis != 'y',
+                    includeY = axis != 'x',
+                    boundary = this.getBoundary();
+                if (includeX && (offset.x < boundary.left || offset.x > boundary.right)) {
+                    return true;
+                }
+                if (includeY && (offset.y < boundary.top || offset.y > boundary.bottom)) {
+                    return true;
+                }
+                return false;
+            };
+
+            var Box = function (element, options, pane) {
+                this.$element = $(element);
+                this.options = $.extend({}, this.defaults, options);
+                this.pane = pane;
+            };
+
+            Box.prototype.defaults = {};
+
+            Box.prototype.setup = function () {
+                var top = parseInt(this.$element.attr('top'));
+                var left = parseInt(this.$element.attr('left'));
+                var width = this.$element.width();
+                var height = this.$element.height();
+
+                top = top * this.options.scale;
+                left = left * this.options.scale;
+                width = width * this.options.scale;
+                height = height * this.options.scale;
+
+                this.$element.css({
+                    position: 'absolute',
+                    top: top + 'px',
+                    left: left + 'px',
+                    width: width + 'px',
+                    height: height + 'px'
+                });
+                this.$element.attr('top', top);
+                this.$element.attr('left', left);
+
+                if (this.$element.attr('data-select') === 'select') {
+                    this.$element.on('click', function (event) {
+                        if (dragging === false) {
+                            this.center();
+                        }
+                    }.bind(this));
+                }
+            };
+
             /*
              * Center a panebox as far as possible.
              */
-            var centerBox = function () {
-                var position = $(this).position();
+            Box.prototype.center = function () {
+                var position = this.$element.position();
                 var destination = {
-                    x: position.left + ($(this).outerWidth() / 2) - ($(window).width() / 2),
-                    y: position.top + ($(this).outerHeight() / 2) - ($(window).height() / 2)
+                    x: position.left + (this.$element.outerWidth() / 2) - ($(window).width() / 2),
+                    y: position.top + (this.$element.outerHeight() / 2) - ($(window).height() / 2)
                 };
 
-                canvas.animate({
+                this.pane.canvas.$element.animate({
                     left: -destination.x,
                     top: -destination.y
-                }, {duration: opts.clickCenterDuration});
+                }, {duration: this.options.clickCenterDuration});
             };
 
-            var init = function () {
-                boxes.each(function () {
-                    var top = parseInt($(this).attr('top'));
-                    var left = parseInt($(this).attr('left'));
-                    var width = $(this).width();
-                    var height = $(this).height();
+            Box.prototype.getTop = function () { return parseInt(this.$element.attr('top')); };
+            Box.prototype.getLeft = function () { return parseInt(this.$element.attr('left')); };
+            Box.prototype.getRight = function () { return parseInt(this.$element.attr('top')) + this.$element.outerHeight(); };
+            Box.prototype.getBottom = function () { return parseInt(this.$element.attr('left')) + this.$element.outerWidth(); };
 
-                    top = top * opts.scale;
-                    left = left * opts.scale;
-                    width = width * opts.scale;
-                    height = height * opts.scale;
+            var Pane = function (element, options) {
+                this.$element = $(element);
+                this.options = $.extend({}, this.defaults, options);
+                this.boxes = [];
+                this.canvas = new Canvas(this.$element.find('.panningpane-canvas'), options, this);
+                this._allowGliding = true;
+            };
 
-                    $(this).css({
-                        position: 'absolute',
-                        top: top + 'px',
-                        left: left + 'px',
-                        width: width + 'px',
-                        height: height + 'px'
-                    });
-                    $(this).attr('top', top);
-                    $(this).attr('left', left);
-                });
+            Pane.prototype.defaults = {};
 
-                boxes.filter('[data-select="select"]').on('click', function (event) {
-                    if (dragging === false) {
-                        centerBox.call(this);
-                    }
-                });
+            Pane.prototype.setup = function () {
+                this.$element.on('mousedown', function () {
+                    // Disallow sliding, the mouse shall have the full control
+                    // over the canvas. But we cannot do this in the drag
+                    // event, since the dragging starts earliest after the
+                    // mouse was moved for one pixel.
+                    this.disallowGliding();
+                    this.canvas.stop();
+                }.bind(this));
 
-                var boundary = getBoundary();
-                console.log(boundary);
-                canvas.css({
+                this.$element.find('.panebox').each(function (i, boxElement) {
+                    var box = new Box(boxElement, this.options, this);
+                    box.setup();
+                    this.boxes.push(box);
+                }.bind(this));
+
+                this.canvas.setup();
+            };
+
+            Pane.prototype.addBox = function (box) {
+                this.boxes.push(box);
+            };
+
+            Pane.prototype.allowGliding = function () {
+                allowGliding = true;
+                this._allowGliding = true;
+            };
+
+            Pane.prototype.disallowGliding = function () {
+                allowGliding = false;
+                this._allowGliding = false;
+            };
+
+            Pane.prototype.init = function () {
+                var boundary = this.canvas.getBoundary();
+                this.canvas.$element.css({
                     width: boundary.right,
                     height: boundary.bottom
                 });
 
-                moveCanvas({x: 0, y: 0});
+                this.canvas.move({x: 0, y: 0});
             };
 
-            /* Drag-handler */
+            var DragHandler = function (pane, options) {
+                this.pane = pane;
+                this.options = $.extend({}, this.defaults, options);
+            };
 
-            var calculateVelocity = function (props) {
+            DragHandler.prototype.defaults = {};
+
+            DragHandler.prototype.setup = function () {
+                this.pane.$element.on('dragstart', function (event, props) {
+                    dragging = true;
+                    props.previousDeltaX = 0;
+                    props.previousDeltaY = 0;
+                    props.lastEventTime = Date.now();
+                    props.latestDeltas = [];
+                });
+
+                this.pane.$element.on('drag', {distance: 1, click: false}, function (event, props) {
+                    this.calculateVelocity(props);
+
+                    var moveBy = {
+                        x: props.previousDeltaX - props.deltaX,
+                        y: props.previousDeltaY - props.deltaY
+                    };
+
+                    this.pane.canvas.move(moveBy);
+                    props.previousDeltaX = props.deltaX;
+                    props.previousDeltaY = props.deltaY;
+                }.bind(this));
+
+                this.pane.$element.on('dragend', function (event, props) {
+                    // Allow sliding again, we are not dragging any more.
+                    this.pane.allowGliding();
+
+                    // Now handle the velocity that is still there and move
+                    // the canvas further.
+                    _.delay(this.handleRestVelocity.bind(this), frameDuration, props, 'x');
+                    _.delay(this.handleRestVelocity.bind(this), frameDuration, props, 'y');
+
+                    // We need to delay the setting of the dragging variable
+                    // since otherwise would we allow the bubbling click on a
+                    // panebox.
+                    _.delay(function () { dragging = false; }, 0);
+                }.bind(this));
+            };
+
+            DragHandler.prototype.calculateVelocity = function (props) {
                 var now = Date.now(),
                     velocityInterval = 100;
 
@@ -240,13 +344,51 @@
             };
 
             /*
+             * Takes the drag-event props and an axis that it should handle.
+             * Then determines if the there is still some velocity left and
+             * use that to move the canvas further after the user released the
+             * mouse button.
+             */
+            DragHandler.prototype.handleRestVelocity = function (props, axis) {
+                // Don'T handle velocity if some dragging is in progress.
+                if (!allowGliding) {
+                    return;
+                }
+
+                var outOfBoundary = this.pane.canvas.isOutOfBoundary(this.pane.canvas.getCurrentOffset(), axis),
+                    acceleration = outOfBoundary ? this.options.outOfBoundaryGlideAcceleration : this.options.glideAcceleration,
+                    velocity = props.velocity[axis] * acceleration,
+                    distance = velocity * (velocityInterval / frameDuration),
+                    lowThreshold = (frameDuration / velocityInterval);
+
+                props.velocity[axis] = velocity;
+
+                this.pane.canvas.move({
+                    x: axis == 'x' ? -distance : 0,
+                    y: axis == 'y' ? -distance : 0
+                });
+
+                if (Math.abs(velocity) > lowThreshold) {
+                    _.delay(this.handleRestVelocity.bind(this), frameDuration, props, axis);
+                } else {
+                    // Both axis has stopped, so we can snap the canvas back for both axis.
+                    if (props.velocity.x < lowThreshold && props.velocity.y < lowThreshold) {
+                        this.pane.canvas.stop();
+                        this.snapBack();
+                    } else {
+                        this.snapBack(axis);
+                    }
+                }
+            };
+
+            /*
              * Glide the canvas back into view if it was dragged outside of
              * its boundaries.
              */
-            var snapBack = function (axis) {
+            DragHandler.prototype.snapBack = function (axis) {
                 var pos = {top: undefined, left: undefined},
-                    boundary = getBoundary(),
-                    currentOffset = getCurrentOffset();
+                    boundary = this.pane.canvas.getBoundary(),
+                    currentOffset = this.pane.canvas.getCurrentOffset();
 
                 if (currentOffset.y < boundary.top) {
                     pos.top = -boundary.top;
@@ -267,94 +409,20 @@
 
                 // If the canvas has been dragged outside the allowed boundaries, gracefully snap back with an animation.
                 var animationOptions = $.extend({
-                    duration: opts.snapBackDuration
-                }, opts.snapBackAnimationOptions);
-                canvas.animate(pos, animationOptions);
+                    duration: this.options.snapBackDuration
+                }, this.options.snapBackAnimationOptions);
+
+                // TODO.
+                this.pane.canvas.$element.animate(pos, animationOptions);
             };
 
-            /*
-             * Takes the drag-event props and an axis that it should handle.
-             * Then determines if the there is still some velocity left and
-             * use that to move the canvas further after the user released the
-             * mouse button.
-             */
-            var handleRestVelocity = function (props, axis) {
-                // Don'T handle velocity if some dragging is in progress.
-                if (!allowGliding) {
-                    return;
-                }
+            var pane = new Pane($(this), opts);
+            pane.setup();
 
-                var outOfBoundary = isOutOfBoundary(getCurrentOffset(), axis),
-                    acceleration = outOfBoundary ? opts.outOfBoundaryGlideAcceleration : opts.glideAcceleration,
-                    velocity = props.velocity[axis] * acceleration,
-                    distance = velocity * (velocityInterval / frameDuration),
-                    lowThreshold = (frameDuration / velocityInterval);
-                
-                props.velocity[axis] = velocity;
+            var dragHandler = new DragHandler(pane, opts);
+            dragHandler.setup();
 
-                moveCanvas({
-                    x: axis == 'x' ? -distance : 0,
-                    y: axis == 'y' ? -distance : 0
-                });
-
-                if (Math.abs(velocity) > lowThreshold) {
-                    _.delay(handleRestVelocity, frameDuration, props, axis);
-                } else {
-                    // Both axis has stopped, so we can snap the canvas back for both axis.
-                    if (props.velocity.x < lowThreshold && props.velocity.y < lowThreshold) {
-                        canvas.stop();
-                        snapBack();
-                    } else {
-                        snapBack(axis);
-                    }
-                }
-            };
-
-            pane
-                .on('mousedown', function () {
-                    // Disallow sliding, the mouse shall have the full control
-                    // over the canvas. But we cannot do this in the drag
-                    // event, since the dragging starts earliest after the
-                    // mouse was moved for one pixel.
-                    allowGliding = false;
-                    canvas.stop();
-                })
-                .on('dragstart', function (event, props) {
-                    dragging = true;
-                    props.previousDeltaX = 0;
-                    props.previousDeltaY = 0;
-                    props.lastEventTime = Date.now();
-                    props.latestDeltas = [];
-                })
-                .on('drag', {distance: 1, click: false}, function (event, props) {
-                    calculateVelocity(props);
-
-                    var moveBy = {
-                        x: props.previousDeltaX - props.deltaX,
-                        y: props.previousDeltaY - props.deltaY
-                    };
-
-                    moveCanvas(moveBy);
-                    props.previousDeltaX = props.deltaX;
-                    props.previousDeltaY = props.deltaY;
-                })
-                .on('dragend', function (event, props) {
-                    // Allow sliding again, we are not dragging any more.
-                    allowGliding = true;
-
-                    // Now handle the velocity that is still there and move
-                    // the canvas further.
-                    _.delay(handleRestVelocity, frameDuration, props, 'x');
-                    _.delay(handleRestVelocity, frameDuration, props, 'y');
-
-                    // We need to delay the setting of the dragging variable
-                    // since otherwise would we allow the bubbling click on a
-                    // panebox.
-                    _.delay(function () { dragging = false; }, 0);
-                });
-
-            init();
-
+            pane.init();
         });
 
         return this;
