@@ -12,8 +12,18 @@
 
     <script type="text/javascript">//<![CDATA[
         $(document).ready(function () {
+            /*
+              Here you can define a list of devices for which you want to
+              apply scaling. Define a media query that categorizes the device
+              you want to apply the scaling and then give the scale factor for
+              these devices. The scale factor first listed, matching media query
+              will be used.
+            */
             var scales = [
+                // For example:
+                // The pane shall be scaled to 0.5 of it's size when the device is smaller than 768px in width.
                 {mediaquery: window.matchMedia("(max-width: 768px)"), scale: 0.5},
+                // The pane shall be scaled to 0.8 of it's size when the device is smaller than 1280px in width.
                 {mediaquery: window.matchMedia("(max-width: 1280px)"), scale: 0.8}
             ];
 
@@ -31,6 +41,9 @@
             $('.panningpane').panningpane({
                 scale: getScale()
             }).css('height', $(window).height() + 'px');
+
+            var fadeInDuration = 3000;
+            $('.panningpane').fadeIn(fadeInDuration);
 
             $('.panebox').click(function () {
                 console.log('Clicked panebox.');
@@ -52,6 +65,11 @@
         background-color: #fff;
         padding: 1em;
         width: 40%;
+    }
+
+    .panningpane {
+        /* Will be faded in by JS */
+        display: none;
     }
 </style>
 </head>
