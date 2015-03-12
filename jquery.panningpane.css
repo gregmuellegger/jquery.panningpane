@@ -1,7 +1,5 @@
 .panningpane {
-    /* custom image as cursor */
-    cursor: url("drag.png"), move;
-
+    cursor: move;
     overflow: hidden;
     position: absolute;
     top: 0;
