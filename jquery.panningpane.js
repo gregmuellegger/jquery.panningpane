@@ -68,17 +68,26 @@
             Canvas.prototype.defaults = {};
 
             Canvas.prototype.setup = function () {
-
+                this.setOffset({
+                    x: -parseInt(this.$element.css('left')),
+                    y: -parseInt(this.$element.css('top'))
+                });
             };
 
             /*
              * Get the current offset for the canvas element.
              */
             Canvas.prototype.getCurrentOffset = function () {
+                // Returning a copy, so that it cannot be fiddled with the
+                // internal value.
                 return {
-                    x: -parseInt(this.$element.css('left')),
-                    y: -parseInt(this.$element.css('top'))
+                    x: this._offset.x,
+                    y: this._offset.y
                 };
+            };
+
+            Canvas.prototype.setOffset = function (offset) {
+                this._offset = offset;
             };
 
             Canvas.prototype.move = function (offset) {
@@ -108,6 +117,7 @@
                     y: currentOffset.y + offset.y * verticalSpeed
                 };
 
+                this.setOffset(currentOffset);
                 this.$element.css({
                     left: -currentOffset.x,
                     top: -currentOffset.y
