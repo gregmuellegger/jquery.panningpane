@@ -287,13 +287,9 @@
             };
 
             Pane.prototype.allowCentering = function (handler) {
-                var allow = true;
-                this.handlers.map(function (handler) {
+                return this.handlers.every(function (handler) {
                     return handler.allowCentering();
-                }).forEach(function (value) {
-                    if (!value) { allow = false; }
                 });
-                return allow;
             };
 
             var DragHandler = function (pane, options) {
@@ -512,7 +508,7 @@
             };
 
             MouseMoveHandler.prototype.allowCentering = function () {
-                return true;
+                return false;
             };
 
             var pane = new Pane($(this), opts);
