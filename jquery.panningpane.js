@@ -242,8 +242,8 @@
 
             Box.prototype.getTop = function () { return parseInt(this.$element.attr('top')); };
             Box.prototype.getLeft = function () { return parseInt(this.$element.attr('left')); };
-            Box.prototype.getRight = function () { return parseInt(this.$element.attr('top')) + this.$element.outerHeight(); };
-            Box.prototype.getBottom = function () { return parseInt(this.$element.attr('left')) + this.$element.outerWidth(); };
+            Box.prototype.getRight = function () { return parseInt(this.$element.attr('left')) + this.$element.outerWidth(); };
+            Box.prototype.getBottom = function () { return parseInt(this.$element.attr('top')) + this.$element.outerHeight(); };
 
             var Pane = function (element, options) {
                 this.$element = $(element);
