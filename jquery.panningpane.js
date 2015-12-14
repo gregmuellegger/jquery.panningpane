@@ -1,3 +1,40 @@
+/*
+ * window.requestAnimationFrame polyfill taken from https://gist.github.com/paulirish/1579671
+ */
+
+// http://paulirish.com/2011/requestanimationframe-for-smart-animating/
+// http://my.opera.com/emoller/blog/2011/12/20/requestanimationframe-for-smart-er-animating
+
+// requestAnimationFrame polyfill by Erik Möller. fixes from Paul Irish and Tino Zijdel
+
+// MIT license
+
+(function() {
+    var lastTime = 0;
+    var vendors = ['ms', 'moz', 'webkit', 'o'];
+    for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
+        window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
+        window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame'] 
+                                   || window[vendors[x]+'CancelRequestAnimationFrame'];
+    }
+ 
+    if (!window.requestAnimationFrame)
+        window.requestAnimationFrame = function(callback, element) {
+            var currTime = new Date().getTime();
+            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+            var id = window.setTimeout(function() { callback(currTime + timeToCall); }, 
+              timeToCall);
+            lastTime = currTime + timeToCall;
+            return id;
+        };
+ 
+    if (!window.cancelAnimationFrame)
+        window.cancelAnimationFrame = function(id) {
+            clearTimeout(id);
+        };
+}());
+
+
 (function ($) {
     $.fn.panningpane = function (options) {
         /**
@@ -487,11 +524,14 @@
                     }
                 }.bind(this));
 
-                this._moveInterval = setInterval(this.performFrame.bind(this), this.options.frameDuration);
+		window.requestAnimationFrame(this.performFrame.bind(this));
             };
 
             MouseMoveHandler.prototype.performFrame = function () {
-                if (this.destination === null) { return; }
+		if (this.destination === null) {
+		    window.requestAnimationFrame(this.performFrame.bind(this));
+		    return;
+		}
 
                 var offset = this.pane.canvas.getCurrentOffset();
                 var distance = {
@@ -499,9 +539,9 @@
                     y: this.destination.y - offset.y
                 };
 
-                var moveBy = this.modifyMove(distance);
-
-                this.pane.canvas.move(moveBy);
+		var moveBy = this.modifyMove(distance);
+		this.pane.canvas.move(moveBy);
+		window.requestAnimationFrame(this.performFrame.bind(this));
             };
 
             MouseMoveHandler.prototype.modifyMove = function (distance) {
