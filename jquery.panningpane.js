@@ -38,6 +38,10 @@
             }
         }, options);
 
+	var roundToFullNumber = function (value) {
+	    return Math.round(value);
+	};
+
         /**
            Some developer documentation:
 
@@ -119,8 +123,8 @@
 
                 this.setOffset(currentOffset);
                 this.$element.css({
-                    left: -currentOffset.x,
-                    top: -currentOffset.y
+                    left: -roundToFullNumber(currentOffset.x),
+                    top: -roundToFullNumber(currentOffset.y)
                 });
             };
 
