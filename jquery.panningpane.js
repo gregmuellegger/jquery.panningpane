@@ -114,10 +114,10 @@
          * might be undefined if one of the given points has an undefined
          * coordinate.
          */
-        var pointDiff = function (start, end) {
+        var pointDiff = function (a, b) {
             return {
-                x: diffOrUndefined(end.x, start.x),
-                y: diffOrUndefined(end.y, start.y),
+                x: diffOrUndefined(a.x, b.x),
+                y: diffOrUndefined(a.y, b.y),
             };
         };
 
@@ -224,7 +224,7 @@
                 this.stopAnimation();
 
                 var start = this.getCurrentOffset();
-                var diff = pointDiff(start, destination);
+                var diff = pointDiff(destination, start);
 
                 var animationOpts = {
                     startTime: new Date().getTime(),
