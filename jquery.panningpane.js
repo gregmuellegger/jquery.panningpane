@@ -36,6 +36,11 @@
 
 
 (function ($) {
+    function easeInOutQuad (x, t, b, c, d) {
+            if ((t/=d/2) < 1) return c/2*t*t + b;
+            return -c/2 * ((--t)*(t-2) - 1) + b;
+    }
+
     $.fn.panningpane = function (options) {
         /**
          * Configuration options:
@@ -62,13 +67,13 @@
         var opts = $.extend({
             scale: 1,
             outOfBoundarySlowdown: 0.5,
-            snapBackDuration: 500,
-            snapBackAnimationOptions: {},
-            glideAcceleration: 0.9,
-            outOfBoundaryGlideAcceleration: 0.5,
+            snapBackDuration: 1500,
+            snapBackEase: easeInOutQuad,
+            glideAcceleration: 0.7,
+            outOfBoundaryGlideAcceleration: 0.1,
             padding: 200,
             clickCenterDuration: 500,
-            frameDuration: 30,
+            clickCenterEase: easeInOutQuad,
             isTouchDevice: 'ontouchstart' in document.documentElement,
             mousemoveSpeedModifier: function (ratio) {
                 return Math.sqrt(ratio * 0.2);
@@ -78,6 +83,43 @@
 	var roundToFullNumber = function (value) {
 	    return Math.round(value);
 	};
+
+        /*
+         * Return a transform css property that uses translate() to move a
+         * given point.
+         */
+        var translate = function (offset) {
+	    var x = roundToFullNumber(offset.x),
+		y = roundToFullNumber(offset.y);
+            return {
+                'transform': 'translate(' + (-x) + 'px,' + (-y) + 'px)',
+                '-ms-transform': 'translate(' + (-x) + 'px,' + (-y) + 'px)',
+                '-webkit-transform': 'translate(' + (-x) + 'px,' + (-y) + 'px)'
+            };
+        };
+
+        /*
+         * Return (a - b) or undefined if one of the values is not defined.
+         */
+        var diffOrUndefined = function (a, b) {
+            if (a === undefined || b === undefined) {
+                return undefined;
+            } else {
+                return a - b;
+            }
+        }
+
+        /*
+         * Return the distance between point start and end. One coordinate
+         * might be undefined if one of the given points has an undefined
+         * coordinate.
+         */
+        var pointDiff = function (start, end) {
+            return {
+                x: diffOrUndefined(end.x, start.x),
+                y: diffOrUndefined(end.y, start.y),
+            };
+        };
 
         /**
            Some developer documentation:
@@ -104,15 +146,13 @@
                 this.$element = $(element);
                 this.options = $.extend({}, this.defaults, options);
                 this.pane = pane;
+                this._animating = false;
             };
 
             Canvas.prototype.defaults = {};
 
             Canvas.prototype.setup = function () {
-                this.setOffset({
-                    x: -parseInt(this.$element.css('left')),
-                    y: -parseInt(this.$element.css('top'))
-                });
+                this.setOffset({ x: 0, y: 0 });
             };
 
             /*
@@ -159,19 +199,97 @@
                 };
 
                 this.setOffset(currentOffset);
-                this.$element.css({
-                    left: -roundToFullNumber(currentOffset.x),
-                    top: -roundToFullNumber(currentOffset.y)
-                });
+                this.$element.css(translate(currentOffset));
+            };
+
+            /*
+             * Move canvas instantly to the given destination.
+             */
+            Canvas.prototype.moveTo = function (destination) {
+                destination = {
+                    x: destination.x !== undefined ? destination.x : this.getCurrentOffset().x,
+                    y: destination.y !== undefined ? destination.y : this.getCurrentOffset().y,
+                };
+                this.setOffset(destination);
+                this.$element.css(translate(destination));
+            };
+
+            /*
+             * Animate the canvas to a new position over a period of
+             * ``duration`` ms. Use the given ``ease`` function to define the
+             * transition. This function must take the same arguments as
+             * jQuery ease function.
+             */
+            Canvas.prototype.animateTo = function (destination, duration, ease) {
+                this.stopAnimation();
+
+                var start = this.getCurrentOffset();
+                var diff = pointDiff(start, destination);
+
+                var animationOpts = {
+                    startTime: new Date().getTime(),
+                    duration: duration,
+                    start: start,
+                    diff: diff,
+                    ease: ease,
+                };
+
+                this._animating = true;
+
+                var performFrame = function () {
+                    if (this._animating) {
+                        window.requestAnimationFrame(function () {
+                            var now = new Date().getTime();
+                            var passedTime = now - animationOpts.startTime;
+
+                            // Never over run the animation.
+                            passedTime = Math.min(passedTime, duration);
+
+                            var frameDestination = {};
+
+                            // We support only animating in one direction.
+
+                            if (diff.x !== undefined) {
+                                frameDestination.x = animationOpts.ease(null, passedTime, start.x, diff.x, animationOpts.duration);
+                            }
+
+                            if (diff.y !== undefined) {
+                                frameDestination.y = animationOpts.ease(null, passedTime, start.y, diff.y, animationOpts.duration);
+                            }
+
+                            this.moveTo(frameDestination);
+
+                            if (now - animationOpts.startTime >= duration) {
+                                this.stopAnimation();
+                            } else {
+                                performFrame();
+                            }
+                        }.bind(this));
+                    }
+                    // Just stop requesting frames if we stopped animating.
+                }.bind(this);
+
+                performFrame()
+            };
+
+            Canvas.prototype.isAnimating = function () {
+                return this._animating;
+            };
+
+            Canvas.prototype.stopAnimation = function () {
+                if (this.isAnimating()) {
+                    this._animating = false;
+                }
             };
 
             // Stop the canvas from animating.
             Canvas.prototype.stop = function () {
-                this.$element.stop();
+                this.stopAnimation();
             };
 
             /*
-             * Return the edges for the canvas, including some padding.
+             * Return the edges for the canvas, including some padding. These
+             * are the coordinations that we maximum can scroll to.
              */
             Canvas.prototype.getBoundary = function () {
                 var padding = this.options.padding;
@@ -274,11 +392,10 @@
                     x: position.left + (this.$element.outerWidth() / 2) - ($(window).width() / 2),
                     y: position.top + (this.$element.outerHeight() / 2) - ($(window).height() / 2)
                 };
-
-                this.pane.canvas.$element.animate({
-                    left: -destination.x,
-                    top: -destination.y
-                }, {duration: this.options.clickCenterDuration});
+                this.pane.canvas.animateTo(
+                    destination,
+                    this.options.clickCenterDuration,
+                    this.options.clickCenterEase);
             };
 
             Box.prototype.getTop = function () { return parseInt(this.$element.attr('top')); };
@@ -379,15 +496,17 @@
                     // Allow sliding again, we are not dragging any more.
                     this._allowGliding = true;
 
-                    // Now handle the velocity that is still there and move
-                    // the canvas further.
-                    _.delay(this.handleRestVelocity.bind(this), this.options.frameDuration, props, 'x');
-                    _.delay(this.handleRestVelocity.bind(this), this.options.frameDuration, props, 'y');
+                    var now = new Date().getTime();
 
                     // We need to delay the setting of the dragging variable
                     // since otherwise would we allow the bubbling click on a
                     // panebox.
-                    _.delay(function () { this.dragging = false; }.bind(this), 0);
+                    setTimeout(function () { this.dragging = false; }.bind(this), 0);
+
+                    // Now handle the velocity that is still there and move
+                    // the canvas further.
+                    window.requestAnimationFrame(this.handleRestVelocity.bind(this, now, props, 'x'));
+                    window.requestAnimationFrame(this.handleRestVelocity.bind(this, now, props, 'y'));
                 }.bind(this));
 
                 this.pane.$element.on('mousedown', function () {
@@ -414,9 +533,11 @@
                     return now - this.options.velocityInterval <= d.time;
                 }.bind(this));
 
+                // props.velocity will contain the distance traveled in the last
+                // (velocityInterval) amount of time.
                 props.velocity = {
-                    x: (props.deltaX - props.latestDeltas[0].x) / 10,
-                    y: (props.deltaY - props.latestDeltas[0].y) / 10
+                    x: (props.deltaX - props.latestDeltas[0].x),
+                    y: (props.deltaY - props.latestDeltas[0].y)
                 };
             };
 
@@ -426,27 +547,34 @@
              * use that to move the canvas further after the user released the
              * mouse button.
              */
-            DragHandler.prototype.handleRestVelocity = function (props, axis) {
+            DragHandler.prototype.handleRestVelocity = function (lastFrame, props, axis) {
                 // Don'T handle velocity if some dragging is in progress.
                 if (!this._allowGliding) {
                     return;
                 }
 
-                var outOfBoundary = this.pane.canvas.isOutOfBoundary(this.pane.canvas.getCurrentOffset(), axis),
-                    acceleration = outOfBoundary ? this.options.outOfBoundaryGlideAcceleration : this.options.glideAcceleration,
-                    velocity = props.velocity[axis] * acceleration,
-                    distance = velocity * (this.options.velocityInterval / this.options.frameDuration),
-                    lowThreshold = (this.options.frameDuration / this.options.velocityInterval);
+                var now = new Date().getTime();
+                var frameDuration = now - lastFrame;
+                var outOfBoundary = this.pane.canvas.isOutOfBoundary(this.pane.canvas.getCurrentOffset(), axis);
+
+                var acceleration = outOfBoundary ? this.options.outOfBoundaryGlideAcceleration : this.options.glideAcceleration;
+                // Normalize, so that we can apply the acceleration only for
+                // the already elapsed frameDuration.
+                var relativeAcceleration = 1 - (1 - acceleration) * (frameDuration / this.options.velocityInterval);
+
+                var velocity = props.velocity[axis] * relativeAcceleration,
+                    distance = velocity * (frameDuration / this.options.velocityInterval),
+                    lowThreshold = (frameDuration / this.options.velocityInterval);
 
                 props.velocity[axis] = velocity;
 
                 this.pane.canvas.move({
-                    x: axis == 'x' ? -distance : 0,
-                    y: axis == 'y' ? -distance : 0
+                    x: axis == 'x' ? -1 * distance : 0,
+                    y: axis == 'y' ? -1 * distance : 0
                 });
 
                 if (Math.abs(velocity) > lowThreshold) {
-                    _.delay(this.handleRestVelocity.bind(this), this.options.frameDuration, props, axis);
+                    window.requestAnimationFrame(this.handleRestVelocity.bind(this, now, props, axis));
                 } else {
                     // Both axis has stopped, so we can snap the canvas back for both axis.
                     if (props.velocity.x < lowThreshold && props.velocity.y < lowThreshold) {
@@ -463,34 +591,33 @@
              * its boundaries.
              */
             DragHandler.prototype.snapBack = function (axis) {
-                var pos = {top: undefined, left: undefined},
+                var destination = {x: undefined, y: undefined},
                     boundary = this.pane.canvas.getBoundary(),
                     currentOffset = this.pane.canvas.getCurrentOffset();
 
                 if (currentOffset.y < boundary.top) {
-                    pos.top = -boundary.top;
+                    destination.y = boundary.top;
                 }
                 if (currentOffset.y > boundary.bottom) {
-                    pos.top = -boundary.bottom;
+                    destination.y = boundary.bottom;
                 }
                 if (currentOffset.x < boundary.left) {
-                    pos.left = -boundary.left;
+                    destination.x = boundary.left;
                 }
                 if (currentOffset.x > boundary.right) {
-                    pos.left = -boundary.right;
+                    destination.x = boundary.right;
                 }
 
                 // If axis is set, then ignore the other axis.
-                if (axis === 'x') { pos.top = undefined; }
-                if (axis === 'y') { pos.left = undefined; }
+                if (axis === 'x') { destination.y = undefined; }
+                if (axis === 'y') { destination.x = undefined; }
 
                 // If the canvas has been dragged outside the allowed boundaries, gracefully snap back with an animation.
-                var animationOptions = $.extend({
-                    duration: this.options.snapBackDuration
-                }, this.options.snapBackAnimationOptions);
 
-                // TODO.
-                this.pane.canvas.$element.animate(pos, animationOptions);
+                this.pane.canvas.animateTo(
+                    destination,
+                    this.options.snapBackDuration,
+                    this.options.snapBackEase);
             };
 
             DragHandler.prototype.stop = function () {
@@ -506,7 +633,6 @@
                 this.options = $.extend({}, this.defaults, options);
                 // We will always try to center the destination.
                 this.destination = null;
-                this._moveInterval;
             };
 
             MouseMoveHandler.prototype.defaults = {};
@@ -534,11 +660,7 @@
 		}
 
                 var offset = this.pane.canvas.getCurrentOffset();
-                var distance = {
-                    x: this.destination.x - offset.x,
-                    y: this.destination.y - offset.y
-                };
-
+                var distance = pointDiff(this.destination, offset);
 		var moveBy = this.modifyMove(distance);
 		this.pane.canvas.move(moveBy);
 		window.requestAnimationFrame(this.performFrame.bind(this));
